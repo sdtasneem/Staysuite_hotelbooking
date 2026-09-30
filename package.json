@@ -1,0 +1,17 @@
+{
+  "name": "staysuite-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "StaySuite: Hotel Booking & Guest Operations Portal",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "build": "npm run build --prefix frontend",
+    "frontend": "npm run dev --prefix frontend",
+    "backend": "npm run dev --prefix backend",
+    "backend:start": "npm run start --prefix backend",
+    "install:all": "npm install && npm install --prefix frontend && npm install --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

@@ -1,0 +1,7 @@
+-- ==============================================================================
+-- StaySuite: Hotel Booking & Guest Operations Portal
+-- Initial Reference Seed Data
+-- ==============================================================================
+-- NOTE: Seed data for rooms, room categories, amenities, and initial staff accounts
+-- will be populated during the database & feature implementation phase.
+-- ==============================================================================
