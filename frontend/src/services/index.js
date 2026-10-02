@@ -31,6 +31,40 @@ export const bookingService = {
         return data;
     },
 
+    // Create a new booking
+    createBooking: async (bookingData) => {
+        const response = await fetch(`${API_BASE_URL}/bookings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(bookingData)
+        });
+
+        const text = await response.text();
+
+        let data = null;
+
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                throw new Error(
+                    `Invalid response from server: ${text}`
+                );
+            }
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                `Failed to create booking: HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    },
+
     // Cancel a booking
     cancelBooking: async (bookingId) => {
         const response = await fetch(

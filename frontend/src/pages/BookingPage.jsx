@@ -1,21 +1,48 @@
-import React, { useEffect, useState } from 'react';
-
-import { bookingService } from '../services';
+import React, { useEffect, useMemo, useState } from 'react';
+import { bookingService, roomService } from '../services';
 
 function BookingPage() {
-    const [bookings, setBookings] = useState([]);
+    /* =========================================================
+       BOOKING LIST STATE
+       ========================================================= */
 
+    const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [cancellingId, setCancellingId] = useState(null);
-
     const [processingId, setProcessingId] = useState(null);
 
     const [error, setError] = useState('');
-
     const [message, setMessage] = useState('');
 
-    // Fetch all bookings
+    /* =========================================================
+       CREATE BOOKING STATE
+       ========================================================= */
+
+    const [showBookingForm, setShowBookingForm] = useState(false);
+
+    const [guests, setGuests] = useState([]);
+    const [availableRooms, setAvailableRooms] = useState([]);
+
+    const [loadingGuests, setLoadingGuests] = useState(false);
+    const [loadingRooms, setLoadingRooms] = useState(false);
+    const [creatingBooking, setCreatingBooking] = useState(false);
+
+    const [bookingForm, setBookingForm] = useState({
+        guest_id: '',
+        room_id: '',
+        check_in_date: '',
+        check_out_date: '',
+        number_of_guests: 1,
+        nightly_rate: '',
+        payment_status: 'pending',
+        special_requests: ''
+    });
+
+    /* =========================================================
+       FETCH BOOKINGS
+       ========================================================= */
+
     const loadBookings = async () => {
         try {
             setLoading(true);
@@ -36,12 +63,351 @@ function BookingPage() {
         }
     };
 
-    // Load bookings when page opens
     useEffect(() => {
         loadBookings();
     }, []);
 
-    // Cancel booking
+    /* =========================================================
+       FETCH GUESTS
+       ========================================================= */
+
+    const loadGuests = async () => {
+        try {
+            setLoadingGuests(true);
+
+            const response = await fetch('/api/guests');
+
+            const text = await response.text();
+
+            let data = null;
+
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch (err) {
+                    throw new Error(
+                        `Invalid guest response: ${text}`
+                    );
+                }
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.message ||
+                    `Failed to load guests: HTTP ${response.status}`
+                );
+            }
+
+            setGuests(data?.data || []);
+        } catch (err) {
+            console.error('Failed to load guests:', err);
+            setError(err.message || 'Failed to load guests');
+        } finally {
+            setLoadingGuests(false);
+        }
+    };
+
+    /* =========================================================
+       OPEN BOOKING FORM
+       ========================================================= */
+
+    const openBookingForm = async () => {
+        setShowBookingForm(true);
+        setError('');
+        setMessage('');
+
+        await loadGuests();
+    };
+
+    /* =========================================================
+       FORM HANDLING
+       ========================================================= */
+
+    const handleFormChange = (event) => {
+        const { name, value } = event.target;
+
+        setBookingForm((current) => ({
+            ...current,
+            [name]: value
+        }));
+
+        if (name === 'check_in_date' || name === 'check_out_date') {
+            setAvailableRooms([]);
+            setBookingForm((current) => ({
+                ...current,
+                [name]: value,
+                room_id: ''
+            }));
+        }
+    };
+
+    /* =========================================================
+       CHECK ROOM AVAILABILITY
+       ========================================================= */
+
+    const findAvailableRooms = async () => {
+        if (
+            !bookingForm.check_in_date ||
+            !bookingForm.check_out_date
+        ) {
+            setError('Please select both check-in and check-out dates.');
+            return;
+        }
+
+        if (
+            bookingForm.check_in_date >=
+            bookingForm.check_out_date
+        ) {
+            setError('Check-out date must be after check-in date.');
+            return;
+        }
+
+        try {
+            setLoadingRooms(true);
+            setError('');
+            setAvailableRooms([]);
+
+            const response = await roomService.getAvailableRooms(
+                bookingForm.check_in_date,
+                bookingForm.check_out_date
+            );
+
+            if (response.success) {
+                setAvailableRooms(response.data || []);
+
+                if ((response.data || []).length === 0) {
+                    setError(
+                        'No rooms are available for the selected dates.'
+                    );
+                }
+            } else {
+                setError('Failed to find available rooms.');
+            }
+        } catch (err) {
+            console.error(
+                'Failed to find available rooms:',
+                err
+            );
+
+            setError(
+                err.message ||
+                'Failed to find available rooms.'
+            );
+        } finally {
+            setLoadingRooms(false);
+        }
+    };
+
+    /* =========================================================
+       CALCULATE NIGHTS
+       ========================================================= */
+
+    const totalNights = useMemo(() => {
+        if (
+            !bookingForm.check_in_date ||
+            !bookingForm.check_out_date
+        ) {
+            return 0;
+        }
+
+        const checkIn = new Date(
+            `${bookingForm.check_in_date}T00:00:00`
+        );
+
+        const checkOut = new Date(
+            `${bookingForm.check_out_date}T00:00:00`
+        );
+
+        const difference =
+            checkOut.getTime() - checkIn.getTime();
+
+        const nights = Math.ceil(
+            difference / (1000 * 60 * 60 * 24)
+        );
+
+        return nights > 0 ? nights : 0;
+    }, [
+        bookingForm.check_in_date,
+        bookingForm.check_out_date
+    ]);
+
+    /* =========================================================
+       CALCULATE AMOUNT
+       ========================================================= */
+
+    const nightlyRate = Number(
+        bookingForm.nightly_rate || 0
+    );
+
+    const subtotal =
+        nightlyRate * totalNights;
+
+    const taxAmount =
+        Math.round(subtotal * 0.10);
+
+    const totalAmount =
+        subtotal + taxAmount;
+
+    /* =========================================================
+       CREATE BOOKING
+       ========================================================= */
+
+    const handleCreateBooking = async (event) => {
+        event.preventDefault();
+
+        setError('');
+        setMessage('');
+
+        if (!bookingForm.guest_id) {
+            setError('Please select a guest.');
+            return;
+        }
+
+        if (!bookingForm.check_in_date) {
+            setError('Please select a check-in date.');
+            return;
+        }
+
+        if (!bookingForm.check_out_date) {
+            setError('Please select a check-out date.');
+            return;
+        }
+
+        if (totalNights <= 0) {
+            setError(
+                'Check-out date must be after check-in date.'
+            );
+            return;
+        }
+
+        if (!bookingForm.room_id) {
+            setError('Please select an available room.');
+            return;
+        }
+
+        if (nightlyRate <= 0) {
+            setError(
+                'Please enter a valid nightly rate.'
+            );
+            return;
+        }
+
+        if (
+            Number(bookingForm.number_of_guests) < 1
+        ) {
+            setError(
+                'Number of guests must be at least 1.'
+            );
+            return;
+        }
+
+        try {
+            setCreatingBooking(true);
+
+            /*
+             * Get room information from the selected
+             * available room.
+             */
+            const selectedRoom = availableRooms.find(
+                (room) => room.id === bookingForm.room_id
+            );
+
+            if (!selectedRoom) {
+                setError(
+                    'Selected room is no longer available. Please check availability again.'
+                );
+                return;
+            }
+
+            const bookingData = {
+                guest_id: bookingForm.guest_id,
+
+                room_id: selectedRoom.id,
+
+                room_type_id:
+                    selectedRoom.room_type_id,
+
+                hotel_id:
+                    selectedRoom.hotel_id,
+
+                check_in_date:
+                    bookingForm.check_in_date,
+
+                check_out_date:
+                    bookingForm.check_out_date,
+
+                number_of_guests:
+                    Number(bookingForm.number_of_guests),
+
+                nightly_rate: nightlyRate,
+
+                total_nights: totalNights,
+
+                total_amount: totalAmount,
+
+                tax_amount: taxAmount,
+
+                booking_status: 'confirmed',
+
+                payment_status:
+                    bookingForm.payment_status,
+
+                special_requests:
+                    bookingForm.special_requests ||
+                    null
+            };
+
+            const response =
+                await bookingService.createBooking(
+                    bookingData
+                );
+
+            if (response.success) {
+                setMessage(
+                    'Booking created successfully'
+                );
+
+                setShowBookingForm(false);
+
+                setBookingForm({
+                    guest_id: '',
+                    room_id: '',
+                    check_in_date: '',
+                    check_out_date: '',
+                    number_of_guests: 1,
+                    nightly_rate: '',
+                    payment_status: 'pending',
+                    special_requests: ''
+                });
+
+                setAvailableRooms([]);
+
+                await loadBookings();
+            } else {
+                setError(
+                    response.message ||
+                    'Failed to create booking'
+                );
+            }
+        } catch (err) {
+            console.error(
+                'Failed to create booking:',
+                err
+            );
+
+            setError(
+                err.message ||
+                'Failed to create booking'
+            );
+        } finally {
+            setCreatingBooking(false);
+        }
+    };
+
+    /* =========================================================
+       CANCEL BOOKING
+       ========================================================= */
+
     const handleCancelBooking = async (bookingId) => {
         const confirmed = window.confirm(
             'Are you sure you want to cancel this booking?'
@@ -56,34 +422,53 @@ function BookingPage() {
             setError('');
             setMessage('');
 
-            const response = await bookingService.cancelBooking(bookingId);
+            const response =
+                await bookingService.cancelBooking(
+                    bookingId
+                );
 
             if (response.success) {
                 setMessage(response.message);
 
-                // Update the booking in the current page
                 setBookings((currentBookings) =>
                     currentBookings.map((booking) =>
                         booking.id === bookingId
                             ? {
                                 ...booking,
-                                booking_status: 'cancelled'
+                                booking_status:
+                                    'cancelled'
                             }
                             : booking
                     )
                 );
             }
         } catch (err) {
-            console.error('Failed to cancel booking:', err);
-            setError(err.message || 'Failed to cancel booking');
+            console.error(
+                'Failed to cancel booking:',
+                err
+            );
+
+            setError(
+                err.message ||
+                'Failed to cancel booking'
+            );
         } finally {
             setCancellingId(null);
         }
     };
 
-    // Check-in / Check-out booking
-    const handleStayAction = async (bookingId, action) => {
-        const actionText = action === 'check-in' ? 'check in' : 'check out';
+    /* =========================================================
+       CHECK-IN / CHECK-OUT
+       ========================================================= */
+
+    const handleStayAction = async (
+        bookingId,
+        action
+    ) => {
+        const actionText =
+            action === 'check-in'
+                ? 'check in'
+                : 'check out';
 
         const confirmed = window.confirm(
             `Are you sure you want to ${actionText} this guest?`
@@ -100,8 +485,12 @@ function BookingPage() {
 
             const response =
                 action === 'check-in'
-                    ? await bookingService.checkInBooking(bookingId)
-                    : await bookingService.checkOutBooking(bookingId);
+                    ? await bookingService.checkInBooking(
+                        bookingId
+                    )
+                    : await bookingService.checkOutBooking(
+                        bookingId
+                    );
 
             if (response.success) {
                 setMessage(response.message);
@@ -115,8 +504,10 @@ function BookingPage() {
                                     action === 'check-in'
                                         ? 'checked_in'
                                         : 'checked_out',
+
                                 rooms: {
                                     ...booking.rooms,
+
                                     status:
                                         action === 'check-in'
                                             ? 'occupied'
@@ -128,67 +519,523 @@ function BookingPage() {
                 );
             }
         } catch (err) {
-            console.error(`Failed to ${actionText} booking:`, err);
+            console.error(
+                `Failed to ${actionText} booking:`,
+                err
+            );
+
             setError(
-                err.message || `Failed to ${actionText} booking`
+                err.message ||
+                `Failed to ${actionText} booking`
             );
         } finally {
             setProcessingId(null);
         }
     };
 
-    // Loading state
+    /* =========================================================
+       LOADING STATE
+       ========================================================= */
+
     if (loading) {
         return (
             <div style={styles.page}>
                 <div style={styles.loadingContainer}>
                     <h2>Loading bookings...</h2>
-                    <p>Please wait while we fetch the booking data.</p>
+
+                    <p>
+                        Please wait while we fetch
+                        the booking data.
+                    </p>
                 </div>
             </div>
         );
     }
 
+    /* =========================================================
+       MAIN PAGE
+       ========================================================= */
+
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                {/* Header */}
+
+                {/* HEADER */}
                 <div style={styles.header}>
                     <div>
-                        <h1 style={styles.title}>Bookings</h1>
+                        <h1 style={styles.title}>
+                            Bookings
+                        </h1>
+
                         <p style={styles.subtitle}>
-                            Manage hotel reservations and guest bookings
+                            Manage hotel reservations
+                            and guest bookings
                         </p>
                     </div>
 
-                    <button
-                        onClick={loadBookings}
-                        style={styles.refreshButton}
-                    >
-                        Refresh
-                    </button>
+                    <div style={styles.headerActions}>
+                        <button
+                            onClick={openBookingForm}
+                            style={styles.createButton}
+                        >
+                            + New Booking
+                        </button>
+
+                        <button
+                            onClick={loadBookings}
+                            style={styles.refreshButton}
+                        >
+                            Refresh
+                        </button>
+                    </div>
                 </div>
 
-                {/* Success message */}
+                {/* SUCCESS MESSAGE */}
                 {message && (
                     <div style={styles.successMessage}>
                         ✓ {message}
                     </div>
                 )}
 
-                {/* Error message */}
+                {/* ERROR MESSAGE */}
                 {error && (
                     <div style={styles.errorMessage}>
                         {error}
                     </div>
                 )}
 
-                {/* No bookings */}
+                {/* =================================================
+                    CREATE BOOKING FORM
+                   ================================================= */}
+
+                {showBookingForm && (
+                    <div style={styles.formCard}>
+
+                        <div style={styles.formHeader}>
+                            <div>
+                                <h2 style={styles.formTitle}>
+                                    Create New Booking
+                                </h2>
+
+                                <p style={styles.formSubtitle}>
+                                    Enter reservation details
+                                    for the guest.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowBookingForm(false);
+                                    setError('');
+                                }}
+                                style={styles.closeButton}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form
+                            onSubmit={handleCreateBooking}
+                        >
+                            <div style={styles.formGrid}>
+
+                                {/* GUEST */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Guest
+                                    </label>
+
+                                    <select
+                                        name="guest_id"
+                                        value={
+                                            bookingForm.guest_id
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            loadingGuests ||
+                                            creatingBooking
+                                        }
+                                    >
+                                        <option value="">
+                                            {loadingGuests
+                                                ? 'Loading guests...'
+                                                : 'Select guest'}
+                                        </option>
+
+                                        {guests.map((guest) => (
+                                            <option
+                                                key={guest.id}
+                                                value={guest.id}
+                                            >
+                                                {guest.full_name}
+                                                {guest.email
+                                                    ? ` - ${guest.email}`
+                                                    : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* NUMBER OF GUESTS */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Number of Guests
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        name="number_of_guests"
+                                        min="1"
+                                        value={
+                                            bookingForm.number_of_guests
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    />
+                                </div>
+
+                                {/* CHECK-IN */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Check-in Date
+                                    </label>
+
+                                    <input
+                                        type="date"
+                                        name="check_in_date"
+                                        value={
+                                            bookingForm.check_in_date
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    />
+                                </div>
+
+                                {/* CHECK-OUT */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Check-out Date
+                                    </label>
+
+                                    <input
+                                        type="date"
+                                        name="check_out_date"
+                                        value={
+                                            bookingForm.check_out_date
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    />
+                                </div>
+
+                                {/* FIND ROOMS */}
+                                <div
+                                    style={{
+                                        ...styles.formGroup,
+                                        gridColumn:
+                                            '1 / -1'
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            findAvailableRooms
+                                        }
+                                        style={
+                                            styles.availabilityButton
+                                        }
+                                        disabled={
+                                            loadingRooms ||
+                                            creatingBooking
+                                        }
+                                    >
+                                        {loadingRooms
+                                            ? 'Checking rooms...'
+                                            : 'Check Room Availability'}
+                                    </button>
+                                </div>
+
+                                {/* ROOM */}
+                                <div
+                                    style={{
+                                        ...styles.formGroup,
+                                        gridColumn:
+                                            '1 / -1'
+                                    }}
+                                >
+                                    <label style={styles.label}>
+                                        Available Room
+                                    </label>
+
+                                    <select
+                                        name="room_id"
+                                        value={
+                                            bookingForm.room_id
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            availableRooms.length ===
+                                            0 ||
+                                            creatingBooking
+                                        }
+                                    >
+                                        <option value="">
+                                            {availableRooms.length ===
+                                                0
+                                                ? 'Check availability first'
+                                                : 'Select available room'}
+                                        </option>
+
+                                        {availableRooms.map(
+                                            (room) => (
+                                                <option
+                                                    key={room.id}
+                                                    value={room.id}
+                                                >
+                                                    Room{' '}
+                                                    {
+                                                        room.room_number
+                                                    }
+                                                    {' - Floor '}
+                                                    {room.floor}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                </div>
+
+                                {/* NIGHTLY RATE */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Nightly Rate (₹)
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        name="nightly_rate"
+                                        min="1"
+                                        step="0.01"
+                                        placeholder="Example: 1500"
+                                        value={
+                                            bookingForm.nightly_rate
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    />
+                                </div>
+
+                                {/* PAYMENT STATUS */}
+                                <div style={styles.formGroup}>
+                                    <label style={styles.label}>
+                                        Payment Status
+                                    </label>
+
+                                    <select
+                                        name="payment_status"
+                                        value={
+                                            bookingForm.payment_status
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        style={styles.input}
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    >
+                                        <option value="pending">
+                                            Pending
+                                        </option>
+
+                                        <option value="paid">
+                                            Paid
+                                        </option>
+                                    </select>
+                                </div>
+
+                                {/* SPECIAL REQUESTS */}
+                                <div
+                                    style={{
+                                        ...styles.formGroup,
+                                        gridColumn:
+                                            '1 / -1'
+                                    }}
+                                >
+                                    <label style={styles.label}>
+                                        Special Requests
+                                    </label>
+
+                                    <textarea
+                                        name="special_requests"
+                                        value={
+                                            bookingForm.special_requests
+                                        }
+                                        onChange={
+                                            handleFormChange
+                                        }
+                                        placeholder="Optional guest requests..."
+                                        rows="3"
+                                        style={
+                                            styles.textarea
+                                        }
+                                        disabled={
+                                            creatingBooking
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            {/* BOOKING SUMMARY */}
+                            <div style={styles.summaryCard}>
+                                <h3
+                                    style={
+                                        styles.summaryTitle
+                                    }
+                                >
+                                    Booking Summary
+                                </h3>
+
+                                <div
+                                    style={
+                                        styles.summaryRow
+                                    }
+                                >
+                                    <span>
+                                        Total Nights
+                                    </span>
+
+                                    <strong>
+                                        {totalNights}
+                                    </strong>
+                                </div>
+
+                                <div
+                                    style={
+                                        styles.summaryRow
+                                    }
+                                >
+                                    <span>
+                                        Subtotal
+                                    </span>
+
+                                    <strong>
+                                        ₹
+                                        {subtotal.toLocaleString(
+                                            'en-IN'
+                                        )}
+                                    </strong>
+                                </div>
+
+                                <div
+                                    style={
+                                        styles.summaryRow
+                                    }
+                                >
+                                    <span>
+                                        Tax (10%)
+                                    </span>
+
+                                    <strong>
+                                        ₹
+                                        {taxAmount.toLocaleString(
+                                            'en-IN'
+                                        )}
+                                    </strong>
+                                </div>
+
+                                <div
+                                    style={{
+                                        ...styles.summaryRow,
+                                        ...styles.totalRow
+                                    }}
+                                >
+                                    <span>
+                                        Total Amount
+                                    </span>
+
+                                    <strong>
+                                        ₹
+                                        {totalAmount.toLocaleString(
+                                            'en-IN'
+                                        )}
+                                    </strong>
+                                </div>
+                            </div>
+
+                            {/* FORM ACTIONS */}
+                            <div style={styles.formActions}>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowBookingForm(false);
+                                        setError('');
+                                    }}
+                                    style={
+                                        styles.secondaryButton
+                                    }
+                                    disabled={
+                                        creatingBooking
+                                    }
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    style={
+                                        styles.submitButton
+                                    }
+                                    disabled={
+                                        creatingBooking
+                                    }
+                                >
+                                    {creatingBooking
+                                        ? 'Creating...'
+                                        : 'Create Booking'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+
+                {/* =================================================
+                    BOOKING TABLE
+                   ================================================= */}
+
                 {bookings.length === 0 ? (
                     <div style={styles.emptyState}>
                         <h2>No bookings found</h2>
+
                         <p>
-                            There are currently no bookings to display.
+                            There are currently no
+                            bookings to display.
                         </p>
                     </div>
                 ) : (
@@ -196,33 +1043,68 @@ function BookingPage() {
                         <table style={styles.table}>
                             <thead>
                                 <tr>
-                                    <th style={styles.th}>Booking</th>
-                                    <th style={styles.th}>Guest</th>
-                                    <th style={styles.th}>Room</th>
-                                    <th style={styles.th}>Check-in</th>
-                                    <th style={styles.th}>Check-out</th>
-                                    <th style={styles.th}>Guests</th>
-                                    <th style={styles.th}>Amount</th>
-                                    <th style={styles.th}>Status</th>
-                                    <th style={styles.th}>Action</th>
+                                    <th style={styles.th}>
+                                        Booking
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Guest
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Room
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Check-in
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Check-out
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Guests
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Amount
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Status
+                                    </th>
+
+                                    <th style={styles.th}>
+                                        Action
+                                    </th>
                                 </tr>
                             </thead>
 
                             <tbody>
                                 {bookings.map((booking) => {
                                     const isCancelled =
-                                        booking.booking_status === 'cancelled';
+                                        booking.booking_status ===
+                                        'cancelled';
 
                                     const isCancelling =
-                                        cancellingId === booking.id;
+                                        cancellingId ===
+                                        booking.id;
 
                                     const isProcessing =
-                                        processingId === booking.id;
+                                        processingId ===
+                                        booking.id;
 
                                     return (
-                                        <tr key={booking.id}>
-                                            {/* Booking */}
-                                            <td style={styles.td}>
+                                        <tr
+                                            key={booking.id}
+                                        >
+                                            {/* BOOKING */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
                                                 <strong>
                                                     {booking.booking_reference ||
                                                         booking.booking_number ||
@@ -230,57 +1112,103 @@ function BookingPage() {
                                                 </strong>
                                             </td>
 
-                                            {/* Guest */}
-                                            <td style={styles.td}>
+                                            {/* GUEST */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
                                                 <div>
                                                     <strong>
-                                                        {booking.guests?.full_name ||
+                                                        {booking
+                                                            .guests
+                                                            ?.full_name ||
                                                             'N/A'}
                                                     </strong>
 
-                                                    {booking.guests?.email && (
-                                                        <div
-                                                            style={
-                                                                styles.secondaryText
-                                                            }
-                                                        >
-                                                            {booking.guests.email}
-                                                        </div>
-                                                    )}
+                                                    {booking
+                                                        .guests
+                                                        ?.email && (
+                                                            <div
+                                                                style={
+                                                                    styles.secondaryText
+                                                                }
+                                                            >
+                                                                {
+                                                                    booking
+                                                                        .guests
+                                                                        .email
+                                                                }
+                                                            </div>
+                                                        )}
                                                 </div>
                                             </td>
 
-                                            {/* Room */}
-                                            <td style={styles.td}>
-                                                {booking.rooms?.room_number ||
+                                            {/* ROOM */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
+                                                {booking.rooms
+                                                    ?.room_number ||
                                                     'N/A'}
                                             </td>
 
-                                            {/* Check-in */}
-                                            <td style={styles.td}>
-                                                {booking.check_in_date || 'N/A'}
+                                            {/* CHECK-IN */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
+                                                {
+                                                    booking.check_in_date
+                                                }
                                             </td>
 
-                                            {/* Check-out */}
-                                            <td style={styles.td}>
-                                                {booking.check_out_date || 'N/A'}
+                                            {/* CHECK-OUT */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
+                                                {
+                                                    booking.check_out_date
+                                                }
                                             </td>
 
-                                            {/* Number of guests */}
-                                            <td style={styles.td}>
-                                                {booking.number_of_guests || 'N/A'}
+                                            {/* GUEST COUNT */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
+                                                {
+                                                    booking.number_of_guests
+                                                }
                                             </td>
 
-                                            {/* Amount */}
-                                            <td style={styles.td}>
+                                            {/* AMOUNT */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
                                                 ₹
                                                 {Number(
-                                                    booking.total_amount || 0
-                                                ).toLocaleString('en-IN')}
+                                                    booking.total_amount ||
+                                                    0
+                                                ).toLocaleString(
+                                                    'en-IN'
+                                                )}
                                             </td>
 
-                                            {/* Status */}
-                                            <td style={styles.td}>
+                                            {/* STATUS */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
                                                 <span
                                                     style={{
                                                         ...styles.status,
@@ -289,18 +1217,24 @@ function BookingPage() {
                                                             : styles.activeStatus)
                                                     }}
                                                 >
-                                                    {booking.booking_status}
+                                                    {
+                                                        booking.booking_status
+                                                    }
                                                 </span>
                                             </td>
 
-                                            {/* Action */}
-                                            <td style={styles.td}>
+                                            {/* ACTIONS */}
+                                            <td
+                                                style={
+                                                    styles.td
+                                                }
+                                            >
                                                 <div
                                                     style={
                                                         styles.actionContainer
                                                     }
                                                 >
-                                                    {/* Check In */}
+                                                    {/* CHECK IN */}
                                                     {booking.booking_status ===
                                                         'confirmed' && (
                                                             <button
@@ -323,7 +1257,7 @@ function BookingPage() {
                                                             </button>
                                                         )}
 
-                                                    {/* Check Out */}
+                                                    {/* CHECK OUT */}
                                                     {booking.booking_status ===
                                                         'checked_in' && (
                                                             <button
@@ -346,7 +1280,7 @@ function BookingPage() {
                                                             </button>
                                                         )}
 
-                                                    {/* Cancel */}
+                                                    {/* CANCEL */}
                                                     {!isCancelled &&
                                                         booking.booking_status !==
                                                         'checked_out' && (
@@ -370,7 +1304,7 @@ function BookingPage() {
                                                             </button>
                                                         )}
 
-                                                    {/* Completed */}
+                                                    {/* COMPLETED */}
                                                     {booking.booking_status ===
                                                         'checked_out' && (
                                                             <span
@@ -382,7 +1316,7 @@ function BookingPage() {
                                                             </span>
                                                         )}
 
-                                                    {/* Cancelled */}
+                                                    {/* CANCELLED */}
                                                     {isCancelled && (
                                                         <span
                                                             style={
@@ -406,6 +1340,10 @@ function BookingPage() {
     );
 }
 
+/* =========================================================
+   STYLES
+   ========================================================= */
+
 const styles = {
     page: {
         minHeight: '100vh',
@@ -423,7 +1361,14 @@ const styles = {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '28px'
+        marginBottom: '28px',
+        gap: '20px'
+    },
+
+    headerActions: {
+        display: 'flex',
+        gap: '10px',
+        alignItems: 'center'
     },
 
     title: {
@@ -436,6 +1381,16 @@ const styles = {
         marginTop: '8px',
         color: '#94a3b8',
         fontSize: '15px'
+    },
+
+    createButton: {
+        padding: '10px 18px',
+        borderRadius: '8px',
+        border: '1px solid #22c55e',
+        background: '#16a34a',
+        color: '#ffffff',
+        cursor: 'pointer',
+        fontWeight: 700
     },
 
     refreshButton: {
@@ -478,6 +1433,156 @@ const styles = {
         borderRadius: '12px',
         border: '1px solid #1f2937'
     },
+
+    /* FORM */
+
+    formCard: {
+        background: '#111827',
+        border: '1px solid #1f2937',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '28px'
+    },
+
+    formHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '24px'
+    },
+
+    formTitle: {
+        margin: 0,
+        fontSize: '22px',
+        fontWeight: 700
+    },
+
+    formSubtitle: {
+        color: '#94a3b8',
+        marginTop: '6px',
+        marginBottom: 0
+    },
+
+    closeButton: {
+        border: 'none',
+        background: 'transparent',
+        color: '#94a3b8',
+        fontSize: '28px',
+        cursor: 'pointer',
+        lineHeight: 1
+    },
+
+    formGrid: {
+        display: 'grid',
+        gridTemplateColumns:
+            'repeat(2, minmax(0, 1fr))',
+        gap: '18px'
+    },
+
+    formGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '7px'
+    },
+
+    label: {
+        color: '#cbd5e1',
+        fontSize: '13px',
+        fontWeight: 600
+    },
+
+    input: {
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '11px 12px',
+        borderRadius: '8px',
+        border: '1px solid #334155',
+        background: '#0f172a',
+        color: '#ffffff',
+        outline: 'none'
+    },
+
+    textarea: {
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '11px 12px',
+        borderRadius: '8px',
+        border: '1px solid #334155',
+        background: '#0f172a',
+        color: '#ffffff',
+        resize: 'vertical',
+        fontFamily: 'inherit'
+    },
+
+    availabilityButton: {
+        padding: '11px 16px',
+        borderRadius: '8px',
+        border: '1px solid #3b82f6',
+        background: '#1d4ed8',
+        color: '#ffffff',
+        cursor: 'pointer',
+        fontWeight: 600
+    },
+
+    summaryCard: {
+        marginTop: '24px',
+        padding: '18px',
+        borderRadius: '10px',
+        background: '#172033',
+        border: '1px solid #334155',
+        maxWidth: '500px',
+        marginLeft: 'auto'
+    },
+
+    summaryTitle: {
+        marginTop: 0,
+        marginBottom: '14px',
+        fontSize: '16px'
+    },
+
+    summaryRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '7px 0',
+        color: '#cbd5e1'
+    },
+
+    totalRow: {
+        marginTop: '8px',
+        paddingTop: '14px',
+        borderTop: '1px solid #334155',
+        color: '#ffffff',
+        fontSize: '17px'
+    },
+
+    formActions: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '10px',
+        marginTop: '24px'
+    },
+
+    secondaryButton: {
+        padding: '10px 18px',
+        borderRadius: '8px',
+        border: '1px solid #475569',
+        background: 'transparent',
+        color: '#cbd5e1',
+        cursor: 'pointer',
+        fontWeight: 600
+    },
+
+    submitButton: {
+        padding: '10px 20px',
+        borderRadius: '8px',
+        border: '1px solid #22c55e',
+        background: '#16a34a',
+        color: '#ffffff',
+        cursor: 'pointer',
+        fontWeight: 700
+    },
+
+    /* TABLE */
 
     tableContainer: {
         overflowX: 'auto',
