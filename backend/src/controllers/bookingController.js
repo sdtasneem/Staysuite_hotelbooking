@@ -1,6 +1,7 @@
 import {
   getAllBookings,
-  getBookingById
+  getBookingById,
+  createBooking
 } from '../services/bookingService.js';
 
 export const getBookings = async (req, res, next) => {
@@ -22,6 +23,20 @@ export const getBooking = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
+      data: booking
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createNewBooking = async (req, res, next) => {
+  try {
+    const booking = await createBooking(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: 'Booking created successfully',
       data: booking
     });
   } catch (error) {

@@ -50,3 +50,61 @@ export const getBookingById = async (bookingId) => {
 
   return data;
 };
+
+export const createBooking = async (bookingData) => {
+  const {
+    guest_id,
+    room_id,
+    room_type_id,
+    hotel_id,
+    check_in_date,
+    check_out_date,
+    number_of_guests,
+    nightly_rate,
+    total_nights,
+    total_amount,
+    tax_amount,
+    booking_status = 'confirmed',
+    payment_status = 'pending',
+    special_requests = null
+  } = bookingData;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      guest_id,
+      room_id,
+      room_type_id,
+      hotel_id,
+      check_in_date,
+      check_out_date,
+      number_of_guests,
+      nightly_rate,
+      total_nights,
+      total_amount,
+      tax_amount,
+      booking_status,
+      payment_status,
+      special_requests
+    })
+    .select(`
+      *,
+      rooms (
+        room_number,
+        floor,
+        status
+      ),
+      guests (
+        full_name,
+        email,
+        phone
+      )
+    `)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create booking: ${error.message}`);
+  }
+
+  return data;
+};
