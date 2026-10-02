@@ -1,11 +1,18 @@
 import React, { useEffect, useState } from 'react';
+
 import { bookingService } from '../services';
 
 function BookingPage() {
     const [bookings, setBookings] = useState([]);
+
     const [loading, setLoading] = useState(true);
+
     const [cancellingId, setCancellingId] = useState(null);
+
+    const [processingId, setProcessingId] = useState(null);
+
     const [error, setError] = useState('');
+
     const [message, setMessage] = useState('');
 
     // Fetch all bookings
@@ -74,6 +81,62 @@ function BookingPage() {
         }
     };
 
+    // Check-in / Check-out booking
+    const handleStayAction = async (bookingId, action) => {
+        const actionText = action === 'check-in' ? 'check in' : 'check out';
+
+        const confirmed = window.confirm(
+            `Are you sure you want to ${actionText} this guest?`
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setProcessingId(bookingId);
+            setError('');
+            setMessage('');
+
+            const response =
+                action === 'check-in'
+                    ? await bookingService.checkInBooking(bookingId)
+                    : await bookingService.checkOutBooking(bookingId);
+
+            if (response.success) {
+                setMessage(response.message);
+
+                setBookings((currentBookings) =>
+                    currentBookings.map((booking) =>
+                        booking.id === bookingId
+                            ? {
+                                ...booking,
+                                booking_status:
+                                    action === 'check-in'
+                                        ? 'checked_in'
+                                        : 'checked_out',
+                                rooms: {
+                                    ...booking.rooms,
+                                    status:
+                                        action === 'check-in'
+                                            ? 'occupied'
+                                            : 'available'
+                                }
+                            }
+                            : booking
+                    )
+                );
+            }
+        } catch (err) {
+            console.error(`Failed to ${actionText} booking:`, err);
+            setError(
+                err.message || `Failed to ${actionText} booking`
+            );
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
     // Loading state
     if (loading) {
         return (
@@ -124,7 +187,9 @@ function BookingPage() {
                 {bookings.length === 0 ? (
                     <div style={styles.emptyState}>
                         <h2>No bookings found</h2>
-                        <p>There are currently no bookings to display.</p>
+                        <p>
+                            There are currently no bookings to display.
+                        </p>
                     </div>
                 ) : (
                     <div style={styles.tableContainer}>
@@ -151,6 +216,9 @@ function BookingPage() {
                                     const isCancelling =
                                         cancellingId === booking.id;
 
+                                    const isProcessing =
+                                        processingId === booking.id;
+
                                     return (
                                         <tr key={booking.id}>
                                             {/* Booking */}
@@ -171,7 +239,11 @@ function BookingPage() {
                                                     </strong>
 
                                                     {booking.guests?.email && (
-                                                        <div style={styles.secondaryText}>
+                                                        <div
+                                                            style={
+                                                                styles.secondaryText
+                                                            }
+                                                        >
                                                             {booking.guests.email}
                                                         </div>
                                                     )}
@@ -180,7 +252,8 @@ function BookingPage() {
 
                                             {/* Room */}
                                             <td style={styles.td}>
-                                                {booking.rooms?.room_number || 'N/A'}
+                                                {booking.rooms?.room_number ||
+                                                    'N/A'}
                                             </td>
 
                                             {/* Check-in */}
@@ -222,23 +295,104 @@ function BookingPage() {
 
                                             {/* Action */}
                                             <td style={styles.td}>
-                                                {isCancelled ? (
-                                                    <span style={styles.disabledText}>
-                                                        Cancelled
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        onClick={() =>
-                                                            handleCancelBooking(booking.id)
-                                                        }
-                                                        disabled={isCancelling}
-                                                        style={styles.cancelButton}
-                                                    >
-                                                        {isCancelling
-                                                            ? 'Cancelling...'
-                                                            : 'Cancel'}
-                                                    </button>
-                                                )}
+                                                <div
+                                                    style={
+                                                        styles.actionContainer
+                                                    }
+                                                >
+                                                    {/* Check In */}
+                                                    {booking.booking_status ===
+                                                        'confirmed' && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleStayAction(
+                                                                        booking.id,
+                                                                        'check-in'
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    isProcessing
+                                                                }
+                                                                style={
+                                                                    styles.checkInButton
+                                                                }
+                                                            >
+                                                                {isProcessing
+                                                                    ? 'Processing...'
+                                                                    : 'Check In'}
+                                                            </button>
+                                                        )}
+
+                                                    {/* Check Out */}
+                                                    {booking.booking_status ===
+                                                        'checked_in' && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleStayAction(
+                                                                        booking.id,
+                                                                        'check-out'
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    isProcessing
+                                                                }
+                                                                style={
+                                                                    styles.checkOutButton
+                                                                }
+                                                            >
+                                                                {isProcessing
+                                                                    ? 'Processing...'
+                                                                    : 'Check Out'}
+                                                            </button>
+                                                        )}
+
+                                                    {/* Cancel */}
+                                                    {!isCancelled &&
+                                                        booking.booking_status !==
+                                                        'checked_out' && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleCancelBooking(
+                                                                        booking.id
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    isCancelling ||
+                                                                    isProcessing
+                                                                }
+                                                                style={
+                                                                    styles.cancelButton
+                                                                }
+                                                            >
+                                                                {isCancelling
+                                                                    ? 'Cancelling...'
+                                                                    : 'Cancel'}
+                                                            </button>
+                                                        )}
+
+                                                    {/* Completed */}
+                                                    {booking.booking_status ===
+                                                        'checked_out' && (
+                                                            <span
+                                                                style={
+                                                                    styles.disabledText
+                                                                }
+                                                            >
+                                                                Completed
+                                                            </span>
+                                                        )}
+
+                                                    {/* Cancelled */}
+                                                    {isCancelled && (
+                                                        <span
+                                                            style={
+                                                                styles.disabledText
+                                                            }
+                                                        >
+                                                            Cancelled
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -378,6 +532,35 @@ const styles = {
     cancelledStatus: {
         background: 'rgba(239, 68, 68, 0.15)',
         color: '#f87171'
+    },
+
+    actionContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '7px',
+        alignItems: 'flex-start'
+    },
+
+    checkInButton: {
+        padding: '8px 14px',
+        borderRadius: '7px',
+        border: '1px solid #22c55e',
+        background: 'transparent',
+        color: '#4ade80',
+        cursor: 'pointer',
+        fontWeight: 600,
+        fontSize: '13px'
+    },
+
+    checkOutButton: {
+        padding: '8px 14px',
+        borderRadius: '7px',
+        border: '1px solid #f59e0b',
+        background: 'transparent',
+        color: '#fbbf24',
+        cursor: 'pointer',
+        fontWeight: 600,
+        fontSize: '13px'
     },
 
     cancelButton: {

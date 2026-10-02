@@ -1,5 +1,9 @@
 const API_BASE_URL = '/api';
 
+/* =========================================================
+   BOOKING SERVICE
+   ========================================================= */
+
 export const bookingService = {
     // Get all bookings
     getAllBookings: async () => {
@@ -66,6 +70,78 @@ export const bookingService = {
                 message: 'Booking cancelled successfully'
             }
         );
+    },
+
+    // Check-in a booking
+    checkInBooking: async (bookingId) => {
+        const response = await fetch(
+            `${API_BASE_URL}/bookings/${bookingId}/check-in`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const text = await response.text();
+
+        let data = null;
+
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                throw new Error(
+                    `Invalid response from server: ${text}`
+                );
+            }
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                `Failed to check in booking: HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    },
+
+    // Check-out a booking
+    checkOutBooking: async (bookingId) => {
+        const response = await fetch(
+            `${API_BASE_URL}/bookings/${bookingId}/check-out`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const text = await response.text();
+
+        let data = null;
+
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                throw new Error(
+                    `Invalid response from server: ${text}`
+                );
+            }
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                `Failed to check out booking: HTTP ${response.status}`
+            );
+        }
+
+        return data;
     }
 };
 

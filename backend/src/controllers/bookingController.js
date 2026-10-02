@@ -2,7 +2,9 @@ import {
   getAllBookings,
   getBookingById,
   createBooking,
-  cancelBooking
+  cancelBooking,
+  checkInBooking,
+  checkOutBooking
 } from '../services/bookingService.js';
 
 export const getBookings = async (req, res, next) => {
@@ -63,6 +65,72 @@ export const cancelBookingHandler = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =========================================================
+// CHECK-IN
+// =========================================================
+
+export const checkInBookingHandler = async (req, res, next) => {
+  try {
+    const result = await checkInBooking(req.params.id);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        success: false,
+        message: `Booking cannot be checked in because its current status is '${result.currentStatus}'.`
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Guest checked in successfully',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// =========================================================
+// CHECK-OUT
+// =========================================================
+
+export const checkOutBookingHandler = async (req, res, next) => {
+  try {
+    const result = await checkOutBooking(req.params.id);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (result.invalidStatus) {
+      return res.status(409).json({
+        success: false,
+        message: `Booking cannot be checked out because its current status is '${result.currentStatus}'.`
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Guest checked out successfully',
       data: result
     });
   } catch (error) {
