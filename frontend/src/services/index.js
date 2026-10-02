@@ -43,7 +43,6 @@ export const bookingService = {
 
         let data = null;
 
-        // Only parse JSON if the response actually contains something
         if (text) {
             try {
                 data = JSON.parse(text);
@@ -54,7 +53,6 @@ export const bookingService = {
             }
         }
 
-        // Handle backend errors
         if (!response.ok) {
             throw new Error(
                 data?.message ||
@@ -62,12 +60,77 @@ export const bookingService = {
             );
         }
 
-        // Successful response
         return (
             data || {
                 success: true,
                 message: 'Booking cancelled successfully'
             }
         );
+    }
+};
+
+
+/* =========================================================
+   ROOM SERVICE
+   ========================================================= */
+
+export const roomService = {
+    // Get all rooms
+    getAllRooms: async () => {
+        const response = await fetch(`${API_BASE_URL}/rooms`);
+
+        const text = await response.text();
+
+        let data;
+
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch (error) {
+            throw new Error(
+                `Invalid response from server: ${text || 'Empty response'}`
+            );
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                `Failed to fetch rooms: HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    },
+
+    // Get available rooms for a date range
+    getAvailableRooms: async (checkInDate, checkOutDate) => {
+        const params = new URLSearchParams({
+            check_in_date: checkInDate,
+            check_out_date: checkOutDate
+        });
+
+        const response = await fetch(
+            `${API_BASE_URL}/rooms/available?${params.toString()}`
+        );
+
+        const text = await response.text();
+
+        let data;
+
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch (error) {
+            throw new Error(
+                `Invalid response from server: ${text || 'Empty response'}`
+            );
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.message ||
+                `Failed to fetch available rooms: HTTP ${response.status}`
+            );
+        }
+
+        return data;
     }
 };

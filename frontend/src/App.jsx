@@ -3,19 +3,21 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Server,
-  Database,
-  Globe,
   CheckCircle2,
   RefreshCw,
-  Layers
+  CalendarDays,
+  BedDouble
 } from 'lucide-react';
 
 import BookingPage from './pages/BookingPage';
+import RoomsPage from './pages/RoomsPage';
 
 function App() {
   const [backendHealth, setBackendHealth] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [activePage, setActivePage] = useState('bookings');
 
   const checkHealth = async () => {
     setLoading(true);
@@ -47,7 +49,10 @@ function App() {
   return (
     <div className="app-container">
 
-      {/* Header */}
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <header
         style={{
           borderBottom: '1px solid var(--color-border)',
@@ -56,9 +61,15 @@ function App() {
           alignItems: 'center',
           justifyContent: 'space-between',
           background: 'rgba(11, 15, 23, 0.8)',
-          backdropFilter: 'blur(10px)'
+          backdropFilter: 'blur(10px)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100
         }}
       >
+
+        {/* Logo / Brand */}
+
         <div
           style={{
             display: 'flex',
@@ -114,13 +125,50 @@ function App() {
           </div>
         </div>
 
-        <div className="status-pill online">
-          <span className="pulsing-dot"></span>
-          React Frontend Active
-        </div>
+        {/* Navigation */}
+
+        <nav
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+
+          <button
+            onClick={() => setActivePage('bookings')}
+            style={{
+              ...styles.navButton,
+              ...(activePage === 'bookings'
+                ? styles.activeNavButton
+                : {})
+            }}
+          >
+            <CalendarDays size={16} />
+            Bookings
+          </button>
+
+          <button
+            onClick={() => setActivePage('rooms')}
+            style={{
+              ...styles.navButton,
+              ...(activePage === 'rooms'
+                ? styles.activeNavButton
+                : {})
+            }}
+          >
+            <BedDouble size={16} />
+            Rooms
+          </button>
+
+        </nav>
       </header>
 
-      {/* Backend Status */}
+
+      {/* =====================================================
+          BACKEND STATUS
+      ===================================================== */}
+
       <section
         style={{
           padding: '20px 32px 0'
@@ -129,9 +177,10 @@ function App() {
         <div
           className="glass-panel"
           style={{
-            padding: '20px'
+            padding: '16px 20px'
           }}
         >
+
           <div
             style={{
               display: 'flex',
@@ -139,6 +188,7 @@ function App() {
               alignItems: 'center'
             }}
           >
+
             <div
               style={{
                 display: 'flex',
@@ -157,93 +207,87 @@ function App() {
                   fontWeight: 600
                 }}
               >
-                Backend API Integration Status
+                Backend API
               </span>
+
+              {backendHealth && (
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    color: '#34d399',
+                    fontSize: '0.82rem'
+                  }}
+                >
+                  <CheckCircle2 size={14} />
+                  Connected
+                </span>
+              )}
+
+              {error && (
+                <span
+                  style={{
+                    color: '#f87171',
+                    fontSize: '0.82rem'
+                  }}
+                >
+                  Disconnected
+                </span>
+              )}
+
             </div>
 
             <button
               onClick={checkHealth}
               disabled={loading}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'var(--color-surface-hover)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                transition: 'all 0.2s ease'
-              }}
+              style={styles.healthButton}
             >
               <RefreshCw
                 size={14}
-                className={loading ? 'animate-spin' : ''}
+                className={
+                  loading ? 'animate-spin' : ''
+                }
               />
 
               {loading
                 ? 'Checking...'
-                : 'Check /api/health'}
+                : 'Check API'}
             </button>
+
           </div>
 
-          {/* Successful health check */}
-          {backendHealth && (
-            <div
-              style={{
-                marginTop: '12px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border:
-                  '1px solid rgba(16, 185, 129, 0.25)',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                color: '#34d399',
-                fontSize: '0.9rem'
-              }}
-            >
-              <CheckCircle2 size={18} />
-
-              <div>
-                <strong>{backendHealth.message}</strong>{' '}
-                (Status: 200 OK)
-              </div>
-            </div>
-          )}
-
-          {/* Health check error */}
           {error && (
-            <div
-              style={{
-                marginTop: '12px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border:
-                  '1px solid rgba(239, 68, 68, 0.25)',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                color: '#f87171',
-                fontSize: '0.88rem'
-              }}
-            >
+            <div style={styles.errorMessage}>
               Backend health check failed: {error}
-              <br />
-              Ensure the Express server is running on
-              port 5000.
             </div>
           )}
+
         </div>
       </section>
 
-      {/* Booking Page */}
+
+      {/* =====================================================
+          PAGE CONTENT
+      ===================================================== */}
+
       <main>
-        <BookingPage />
+
+        {activePage === 'bookings' && (
+          <BookingPage />
+        )}
+
+        {activePage === 'rooms' && (
+          <RoomsPage />
+        )}
+
       </main>
 
-      {/* Footer */}
+
+      {/* =====================================================
+          FOOTER
+      ===================================================== */}
+
       <footer
         style={{
           borderTop: '1px solid var(--color-border)',
@@ -256,10 +300,65 @@ function App() {
         }}
       >
         StaySuite Hotel Booking & Guest Operations Portal
-        &copy; 2026. Architecture Phase Verified.
+        &copy; 2026
       </footer>
+
     </div>
   );
 }
+
+
+/* =========================================================
+   STYLES
+   ========================================================= */
+
+const styles = {
+
+  navButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '7px',
+    padding: '9px 14px',
+    borderRadius: '8px',
+    border: '1px solid transparent',
+    background: 'transparent',
+    color: '#94a3b8',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 600,
+    transition: 'all 0.2s ease'
+  },
+
+  activeNavButton: {
+    background: 'rgba(245, 158, 11, 0.12)',
+    border: '1px solid rgba(245, 158, 11, 0.3)',
+    color: '#fbbf24'
+  },
+
+  healthButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'var(--color-surface-hover)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-text-primary)',
+    padding: '6px 14px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+    transition: 'all 0.2s ease'
+  },
+
+  errorMessage: {
+    marginTop: '12px',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    background: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.25)',
+    color: '#f87171',
+    fontSize: '0.85rem'
+  }
+
+};
 
 export default App;
