@@ -6,11 +6,13 @@ import {
   CheckCircle2,
   RefreshCw,
   CalendarDays,
-  BedDouble
+  BedDouble,
+  Users
 } from 'lucide-react';
 
 import BookingPage from './pages/BookingPage';
 import RoomsPage from './pages/RoomsPage';
+import GuestPortalPage from './pages/GuestPortalPage';
 
 function App() {
   const [backendHealth, setBackendHealth] = useState(null);
@@ -33,9 +35,11 @@ function App() {
       }
 
       const data = await response.json();
+
       setBackendHealth(data);
     } catch (err) {
       console.error('Health check failed:', err);
+
       setError(err.message);
     } finally {
       setLoading(false);
@@ -77,6 +81,7 @@ function App() {
             gap: '12px'
           }}
         >
+
           <div
             style={{
               background:
@@ -98,6 +103,7 @@ function App() {
           </div>
 
           <div>
+
             <h1
               style={{
                 fontFamily: 'var(--font-serif)',
@@ -122,10 +128,15 @@ function App() {
             >
               Hotel Booking & Guest Operations Portal
             </p>
+
           </div>
+
         </div>
 
-        {/* Navigation */}
+
+        {/* =====================================================
+            NAVIGATION
+        ===================================================== */}
 
         <nav
           style={{
@@ -134,6 +145,8 @@ function App() {
             gap: '8px'
           }}
         >
+
+          {/* Bookings */}
 
           <button
             onClick={() => setActivePage('bookings')}
@@ -145,8 +158,12 @@ function App() {
             }}
           >
             <CalendarDays size={16} />
+
             Bookings
           </button>
+
+
+          {/* Rooms */}
 
           <button
             onClick={() => setActivePage('rooms')}
@@ -158,15 +175,34 @@ function App() {
             }}
           >
             <BedDouble size={16} />
+
             Rooms
           </button>
 
+
+          {/* Guests */}
+
+          <button
+            onClick={() => setActivePage('guests')}
+            style={{
+              ...styles.navButton,
+              ...(activePage === 'guests'
+                ? styles.activeNavButton
+                : {})
+            }}
+          >
+            <Users size={16} />
+
+            Guests
+          </button>
+
         </nav>
+
       </header>
 
 
       {/* =====================================================
-          BACKEND STATUS
+          BACKEND API STATUS
       ===================================================== */}
 
       <section
@@ -174,6 +210,7 @@ function App() {
           padding: '20px 32px 0'
         }}
       >
+
         <div
           className="glass-panel"
           style={{
@@ -196,6 +233,7 @@ function App() {
                 gap: '10px'
               }}
             >
+
               <Server
                 size={18}
                 color="var(--color-text-secondary)"
@@ -210,6 +248,9 @@ function App() {
                 Backend API
               </span>
 
+
+              {/* Connected */}
+
               {backendHealth && (
                 <span
                   style={{
@@ -221,9 +262,13 @@ function App() {
                   }}
                 >
                   <CheckCircle2 size={14} />
+
                   Connected
                 </span>
               )}
+
+
+              {/* Disconnected */}
 
               {error && (
                 <span
@@ -238,24 +283,34 @@ function App() {
 
             </div>
 
+
+            {/* Check API button */}
+
             <button
               onClick={checkHealth}
               disabled={loading}
               style={styles.healthButton}
             >
+
               <RefreshCw
                 size={14}
                 className={
-                  loading ? 'animate-spin' : ''
+                  loading
+                    ? 'animate-spin'
+                    : ''
                 }
               />
 
               {loading
                 ? 'Checking...'
                 : 'Check API'}
+
             </button>
 
           </div>
+
+
+          {/* Error message */}
 
           {error && (
             <div style={styles.errorMessage}>
@@ -264,6 +319,7 @@ function App() {
           )}
 
         </div>
+
       </section>
 
 
@@ -279,6 +335,10 @@ function App() {
 
         {activePage === 'rooms' && (
           <RoomsPage />
+        )}
+
+        {activePage === 'guests' && (
+          <GuestPortalPage />
         )}
 
       </main>
@@ -310,7 +370,7 @@ function App() {
 
 /* =========================================================
    STYLES
-   ========================================================= */
+========================================================= */
 
 const styles = {
 
