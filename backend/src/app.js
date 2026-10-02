@@ -3,6 +3,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { config } from './config/env.js';
 import healthRoutes from './routes/healthRoutes.js';
+import roomRoutes from './routes/roomRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -13,11 +14,13 @@ app.use(cors({
   origin: config.clientUrl,
   credentials: true
 }));
+
 app.use(express.json());
 app.use(morgan('dev'));
 
 // API Routes
 app.use('/api', healthRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Root informational endpoint
 app.get('/', (req, res) => {
