@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import { config } from './config/env.js';
 import healthRoutes from './routes/healthRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -21,6 +22,7 @@ app.use(morgan('dev'));
 // API Routes
 app.use('/api', healthRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Root informational endpoint
 app.get('/', (req, res) => {
@@ -30,7 +32,9 @@ app.get('/', (req, res) => {
     version: '0.1.0',
     status: 'online',
     endpoints: {
-      health: '/api/health'
+      health: '/api/health',
+      rooms: '/api/rooms',
+      bookings: '/api/bookings'
     }
   });
 });
@@ -42,8 +46,13 @@ app.use(errorHandler);
 // Start server
 if (process.env.NODE_ENV !== 'test') {
   app.listen(config.port, () => {
-    console.log(`[StaySuite API] Server running in ${config.nodeEnv} mode on http://localhost:${config.port}`);
-    console.log(`[StaySuite API] Health check available at http://localhost:${config.port}/api/health`);
+    console.log(
+      `[StaySuite API] Server running in ${config.nodeEnv} mode on http://localhost:${config.port}`
+    );
+
+    console.log(
+      `[StaySuite API] Health check available at http://localhost:${config.port}/api/health`
+    );
   });
 }
 
