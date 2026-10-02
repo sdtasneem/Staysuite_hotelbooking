@@ -1,29 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   Building2,
-  Server,
-  CheckCircle2,
-  RefreshCw,
   CalendarDays,
   BedDouble,
-  Users
+  Users,
+  Server,
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
 
+import { supabase } from './services/supabaseClient';
+
+import AuthPage from './pages/AuthPage';
 import BookingPage from './pages/BookingPage';
 import RoomsPage from './pages/RoomsPage';
 import GuestPortalPage from './pages/GuestPortalPage';
 
 function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [backendHealth, setBackendHealth] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [backendLoading, setBackendLoading] = useState(false);
+  const [backendError, setBackendError] = useState('');
 
   const [activePage, setActivePage] = useState('bookings');
 
+  // =========================================================
+  // SUPABASE AUTHENTICATION
+  // =========================================================
+
+  useEffect(() => {
+    let mounted = true;
+
+    const getSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (error) {
+        console.error('Failed to get Supabase session:', error);
+      }
+
+      setSession(data?.session || null);
+      setAuthLoading(false);
+    };
+
+    getSession();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (mounted) {
+        setSession(newSession);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // =========================================================
+  // BACKEND HEALTH CHECK
+  // =========================================================
+
   const checkHealth = async () => {
-    setLoading(true);
-    setError(null);
+    setBackendLoading(true);
+    setBackendError('');
 
     try {
       const response = await fetch('/api/health');
@@ -37,25 +85,91 @@ function App() {
       const data = await response.json();
 
       setBackendHealth(data);
-    } catch (err) {
-      console.error('Health check failed:', err);
-
-      setError(err.message);
+    } catch (error) {
+      console.error('Health check failed:', error);
+      setBackendHealth(null);
+      setBackendError(error.message || 'Backend API unavailable');
     } finally {
-      setLoading(false);
+      setBackendLoading(false);
     }
   };
 
   useEffect(() => {
-    checkHealth();
-  }, []);
+    if (session) {
+      checkHealth();
+    }
+  }, [session]);
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('Logout failed:', error);
+      return;
+    }
+
+    setSession(null);
+    setActivePage('bookings');
+  };
+
+  // =========================================================
+  // AUTH LOADING
+  // =========================================================
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#080c14',
+          color: '#ffffff'
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading StaySuite...</h2>
+          <p style={{ color: '#94a3b8' }}>
+            Checking your authentication session.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // LOGIN / REGISTER
+  // =========================================================
+
+  if (!session) {
+    return (
+      <AuthPage
+        onAuthSuccess={(newSession) => {
+          setSession(newSession);
+        }}
+      />
+    );
+  }
+
+  // =========================================================
+  // MAIN APPLICATION
+  // =========================================================
 
   return (
-    <div className="app-container">
-
+    <div
+      className="app-container"
+      style={{
+        minHeight: '100vh'
+      }}
+    >
       {/* =====================================================
           HEADER
-      ===================================================== */}
+      ====================================================== */}
 
       <header
         style={{
@@ -64,24 +178,24 @@ function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(11, 15, 23, 0.8)',
+          gap: '20px',
+          background: 'rgba(11, 15, 23, 0.95)',
           backdropFilter: 'blur(10px)',
           position: 'sticky',
           top: 0,
           zIndex: 100
         }}
       >
-
-        {/* Logo / Brand */}
+        {/* Logo */}
 
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px'
+            gap: '12px',
+            minWidth: 0
           }}
         >
-
           <div
             style={{
               background:
@@ -91,8 +205,8 @@ function App() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow:
-                '0 4px 12px rgba(245, 158, 11, 0.25)'
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+              flexShrink: 0
             }}
           >
             <Building2
@@ -103,7 +217,6 @@ function App() {
           </div>
 
           <div>
-
             <h1
               style={{
                 fontFamily: 'var(--font-serif)',
@@ -128,206 +241,206 @@ function App() {
             >
               Hotel Booking & Guest Operations Portal
             </p>
-
           </div>
-
         </div>
 
-
-        {/* =====================================================
-            NAVIGATION
-        ===================================================== */}
+        {/* Navigation */}
 
         <nav
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '8px',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end'
           }}
         >
-
-          {/* Bookings */}
-
           <button
+            type="button"
             onClick={() => setActivePage('bookings')}
             style={{
-              ...styles.navButton,
+              ...navButtonStyle,
               ...(activePage === 'bookings'
-                ? styles.activeNavButton
+                ? activeNavButtonStyle
                 : {})
             }}
           >
-            <CalendarDays size={16} />
-
+            <CalendarDays size={17} />
             Bookings
           </button>
 
-
-          {/* Rooms */}
-
           <button
+            type="button"
             onClick={() => setActivePage('rooms')}
             style={{
-              ...styles.navButton,
+              ...navButtonStyle,
               ...(activePage === 'rooms'
-                ? styles.activeNavButton
+                ? activeNavButtonStyle
                 : {})
             }}
           >
-            <BedDouble size={16} />
-
+            <BedDouble size={17} />
             Rooms
           </button>
 
-
-          {/* Guests */}
-
           <button
+            type="button"
             onClick={() => setActivePage('guests')}
             style={{
-              ...styles.navButton,
+              ...navButtonStyle,
               ...(activePage === 'guests'
-                ? styles.activeNavButton
+                ? activeNavButtonStyle
                 : {})
             }}
           >
-            <Users size={16} />
-
+            <Users size={17} />
             Guests
           </button>
 
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              ...navButtonStyle,
+              color: '#fca5a5',
+              borderColor: 'rgba(239, 68, 68, 0.25)'
+            }}
+            title="Logout"
+          >
+            <LogOut size={17} />
+            Logout
+          </button>
         </nav>
-
       </header>
 
-
       {/* =====================================================
-          BACKEND API STATUS
-      ===================================================== */}
+          MAIN CONTENT
+      ====================================================== */}
 
-      <section
+      <main
         style={{
-          padding: '20px 32px 0'
+          padding: '22px 32px 40px'
         }}
       >
+        {/* Backend API Status */}
 
         <div
-          className="glass-panel"
           style={{
-            padding: '16px 20px'
+            marginBottom: '28px',
+            padding: '18px 22px',
+            borderRadius: '18px',
+            border: '1px solid #263247',
+            background: '#111827',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '20px',
+            flexWrap: 'wrap'
           }}
         >
-
           <div
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: '10px'
             }}
           >
+            <Server
+              size={20}
+              color="var(--color-text-secondary)"
+            />
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px'
-              }}
-            >
+            <strong>Backend API</strong>
 
-              <Server
-                size={18}
-                color="var(--color-text-secondary)"
-              />
-
+            {backendHealth && (
               <span
                 style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 600
+                  color: '#34d399',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}
               >
-                Backend API
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    display: 'inline-block'
+                  }}
+                />
+                Connected
               </span>
+            )}
 
-
-              {/* Connected */}
-
-              {backendHealth && (
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    color: '#34d399',
-                    fontSize: '0.82rem'
-                  }}
-                >
-                  <CheckCircle2 size={14} />
-
-                  Connected
-                </span>
-              )}
-
-
-              {/* Disconnected */}
-
-              {error && (
-                <span
-                  style={{
-                    color: '#f87171',
-                    fontSize: '0.82rem'
-                  }}
-                >
-                  Disconnected
-                </span>
-              )}
-
-            </div>
-
-
-            {/* Check API button */}
-
-            <button
-              onClick={checkHealth}
-              disabled={loading}
-              style={styles.healthButton}
-            >
-
-              <RefreshCw
-                size={14}
-                className={
-                  loading
-                    ? 'animate-spin'
-                    : ''
-                }
-              />
-
-              {loading
-                ? 'Checking...'
-                : 'Check API'}
-
-            </button>
-
+            {backendError && (
+              <span
+                style={{
+                  color: '#f87171'
+                }}
+              >
+                Disconnected
+              </span>
+            )}
           </div>
 
+          <button
+            type="button"
+            onClick={checkHealth}
+            disabled={backendLoading}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '9px 15px',
+              borderRadius: '9px',
+              border: '1px solid #334155',
+              background: '#1e293b',
+              color: '#ffffff',
+              cursor: backendLoading
+                ? 'not-allowed'
+                : 'pointer',
+              opacity: backendLoading ? 0.7 : 1
+            }}
+          >
+            <RefreshCw
+              size={15}
+              className={
+                backendLoading ? 'animate-spin' : ''
+              }
+            />
 
-          {/* Error message */}
-
-          {error && (
-            <div style={styles.errorMessage}>
-              Backend health check failed: {error}
-            </div>
-          )}
-
+            {backendLoading ? 'Checking...' : 'Check API'}
+          </button>
         </div>
 
-      </section>
+        {/* Logged-in user information */}
 
+        <div
+          style={{
+            marginBottom: '24px',
+            display: 'flex',
+            justifyContent: 'flex-end'
+          }}
+        >
+          <div
+            style={{
+              padding: '8px 14px',
+              borderRadius: '20px',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              color: '#fbbf24',
+              fontSize: '0.85rem'
+            }}
+          >
+            {session.user?.email}
+          </div>
+        </div>
 
-      {/* =====================================================
-          PAGE CONTENT
-      ===================================================== */}
-
-      <main>
+        {/* =================================================
+            PAGE ROUTING
+        ================================================== */}
 
         {activePage === 'bookings' && (
           <BookingPage />
@@ -340,13 +453,11 @@ function App() {
         {activePage === 'guests' && (
           <GuestPortalPage />
         )}
-
       </main>
-
 
       {/* =====================================================
           FOOTER
-      ===================================================== */}
+      ====================================================== */}
 
       <footer
         style={{
@@ -355,70 +466,38 @@ function App() {
           textAlign: 'center',
           fontSize: '0.85rem',
           color: 'var(--color-text-muted)',
-          background: 'rgba(11, 15, 23, 0.5)',
-          marginTop: '32px'
+          background: 'rgba(11, 15, 23, 0.5)'
         }}
       >
         StaySuite Hotel Booking & Guest Operations Portal
         &copy; 2026
       </footer>
-
     </div>
   );
 }
 
+// ===========================================================
+// NAVIGATION STYLES
+// ===========================================================
 
-/* =========================================================
-   STYLES
-========================================================= */
+const navButtonStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '7px',
+  padding: '10px 15px',
+  borderRadius: '9px',
+  border: '1px solid transparent',
+  background: 'transparent',
+  color: '#94a3b8',
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontSize: '0.9rem'
+};
 
-const styles = {
-
-  navButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '7px',
-    padding: '9px 14px',
-    borderRadius: '8px',
-    border: '1px solid transparent',
-    background: 'transparent',
-    color: '#94a3b8',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 600,
-    transition: 'all 0.2s ease'
-  },
-
-  activeNavButton: {
-    background: 'rgba(245, 158, 11, 0.12)',
-    border: '1px solid rgba(245, 158, 11, 0.3)',
-    color: '#fbbf24'
-  },
-
-  healthButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    background: 'var(--color-surface-hover)',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-text-primary)',
-    padding: '6px 14px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '0.82rem',
-    transition: 'all 0.2s ease'
-  },
-
-  errorMessage: {
-    marginTop: '12px',
-    padding: '10px 14px',
-    borderRadius: '8px',
-    background: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.25)',
-    color: '#f87171',
-    fontSize: '0.85rem'
-  }
-
+const activeNavButtonStyle = {
+  background: 'rgba(245, 158, 11, 0.12)',
+  border: '1px solid rgba(245, 158, 11, 0.35)',
+  color: '#fbbf24'
 };
 
 export default App;
