@@ -108,3 +108,75 @@ export const createBooking = async (bookingData) => {
 
   return data;
 };
+
+export const cancelBooking = async (bookingId) => {
+  // Check whether the booking exists
+  const { data: existingData, error: fetchError } = await supabase
+    .from('bookings')
+    .select('booking_status')
+    .eq('id', bookingId)
+    .single();
+
+  if (fetchError) {
+    return null;
+  }
+
+  // If already cancelled, return the booking
+  if (existingData.booking_status === 'cancelled') {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        rooms (
+          room_number,
+          floor,
+          status
+        ),
+        guests (
+          full_name,
+          email,
+          phone
+        )
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to fetch cancelled booking: ${error.message}`);
+    }
+
+    return {
+      ...data,
+      alreadyCancelled: true
+    };
+  }
+
+  // Cancel the booking
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ booking_status: 'cancelled' })
+    .eq('id', bookingId)
+    .select(`
+      *,
+      rooms (
+        room_number,
+        floor,
+        status
+      ),
+      guests (
+        full_name,
+        email,
+        phone
+      )
+    `)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to cancel booking: ${error.message}`);
+  }
+
+  return {
+    ...data,
+    alreadyCancelled: false
+  };
+};
