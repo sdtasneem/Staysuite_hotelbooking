@@ -75,7 +75,9 @@ function BookingPage() {
         try {
             setLoadingGuests(true);
 
-            const response = await fetch('/api/guests');
+            const response = await fetch(
+                `${import.meta.env.VITE_API_URL || '/api'}/guests`
+            );
 
             const text = await response.text();
 
