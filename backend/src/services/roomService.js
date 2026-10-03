@@ -54,3 +54,87 @@ export const getAvailableRooms = async (checkInDate, checkOutDate) => {
 
   return availableRooms;
 };
+export const createRoom = async (roomData) => {
+  const {
+    hotel_id,
+    room_type_id,
+    room_number,
+    floor = 1,
+    status = 'available',
+    is_smoking = false,
+    keycard_code = null,
+    notes = null
+  } = roomData;
+
+  const { data, error } = await supabase
+    .from('rooms')
+    .insert({
+      hotel_id,
+      room_type_id,
+      room_number,
+      floor,
+      status,
+      is_smoking,
+      keycard_code,
+      notes
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create room: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const updateRoom = async (roomId, roomData) => {
+  const allowedFields = [
+    'hotel_id',
+    'room_type_id',
+    'room_number',
+    'floor',
+    'status',
+    'is_smoking',
+    'keycard_code',
+    'notes'
+  ];
+
+  const updates = {};
+
+  for (const field of allowedFields) {
+    if (roomData[field] !== undefined) {
+      updates[field] = roomData[field];
+    }
+  }
+
+  updates.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('rooms')
+    .update(updates)
+    .eq('id', roomId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update room: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const deleteRoom = async (roomId) => {
+  const { data, error } = await supabase
+    .from('rooms')
+    .delete()
+    .eq('id', roomId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to delete room: ${error.message}`);
+  }
+
+  return data;
+};

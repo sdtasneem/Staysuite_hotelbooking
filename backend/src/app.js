@@ -11,6 +11,8 @@ import guestRoutes from './routes/guestRoutes.js';
 
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
+import weatherRoutes from './routes/weatherRoutes.js';
+import countryRoutes from './routes/countryRoutes.js';
 
 const app = express();
 
@@ -20,6 +22,7 @@ const app = express();
 
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5175',
   'https://staysuite-hotelbooking.vercel.app',
   'https://staysuite-hotelbooking-cb7u3wiiy-sdtasneem.vercel.app'
 ];
@@ -58,6 +61,8 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 
 app.use('/api/guests', guestRoutes);
+app.use('/api/weather', weatherRoutes);
+app.use('/api/country', countryRoutes);
 
 // =========================================================
 // ERROR HANDLING
