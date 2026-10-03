@@ -74,7 +74,12 @@ function App() {
     setBackendError('');
 
     try {
-      const response = await fetch('/api/health');
+      const API_BASE_URL =
+        import.meta.env.VITE_API_URL || '/api';
+
+      const response = await fetch(
+        `${API_BASE_URL}/health`
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -88,7 +93,9 @@ function App() {
     } catch (error) {
       console.error('Health check failed:', error);
       setBackendHealth(null);
-      setBackendError(error.message || 'Backend API unavailable');
+      setBackendError(
+        error.message || 'Backend API unavailable'
+      );
     } finally {
       setBackendLoading(false);
     }
@@ -134,6 +141,7 @@ function App() {
       >
         <div style={{ textAlign: 'center' }}>
           <h2>Loading StaySuite...</h2>
+
           <p style={{ color: '#94a3b8' }}>
             Checking your authentication session.
           </p>
@@ -205,7 +213,8 @@ function App() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+              boxShadow:
+                '0 4px 12px rgba(245, 158, 11, 0.25)',
               flexShrink: 0
             }}
           >
@@ -370,6 +379,7 @@ function App() {
                     display: 'inline-block'
                   }}
                 />
+
                 Connected
               </span>
             )}
@@ -411,7 +421,9 @@ function App() {
               }
             />
 
-            {backendLoading ? 'Checking...' : 'Check API'}
+            {backendLoading
+              ? 'Checking...'
+              : 'Check API'}
           </button>
         </div>
 
@@ -429,7 +441,8 @@ function App() {
               padding: '8px 14px',
               borderRadius: '20px',
               background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.2)',
+              border:
+                '1px solid rgba(245, 158, 11, 0.2)',
               color: '#fbbf24',
               fontSize: '0.85rem'
             }}
