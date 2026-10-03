@@ -56,7 +56,7 @@ app.use(errorHandler);
 // =========================================================
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(config.port, () => {
+  app.listen(config.port, '0.0.0.0', () => {
     console.log(
       `[StaySuite API] Server running in ${config.nodeEnv} mode on http://localhost:${config.port}`
     );
