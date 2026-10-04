@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { bookingService, roomService } from '../services/bookingService';
+
+import { bookingService, roomService } from '../services';
 
 const formatDate = (date) => {
     return date.toISOString().split('T')[0];
@@ -12,6 +13,11 @@ const getToday = () => {
 const FrontDeskDashboard = () => {
     const [bookings, setBookings] = useState([]);
     const [rooms, setRooms] = useState([]);
+
+    // Weather state
+    const [weather, setWeather] = useState(null);
+    const [weatherLoading, setWeatherLoading] = useState(true);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -19,17 +25,47 @@ const FrontDeskDashboard = () => {
         try {
             setLoading(true);
             setError('');
+            setWeatherLoading(true);
 
-            const [bookingResponse, roomResponse] = await Promise.all([
+            const API_BASE_URL =
+                import.meta.env.VITE_API_URL || '/api';
+
+            const [
+                bookingResponse,
+                roomResponse,
+                weatherResponse
+            ] = await Promise.all([
                 bookingService.getAllBookings(),
-                roomService.getAllRooms()
+                roomService.getAllRooms(),
+                fetch(
+                    `${API_BASE_URL}/weather?latitude=13.0827&longitude=80.2707`
+                )
             ]);
+
+            if (!weatherResponse.ok) {
+                throw new Error(
+                    'Failed to load weather information'
+                );
+            }
+
+            const weatherData = await weatherResponse.json();
 
             setBookings(bookingResponse?.data || []);
             setRooms(roomResponse?.data || []);
+
+            setWeather(weatherData);
+            setWeatherLoading(false);
+
         } catch (err) {
             console.error('Dashboard error:', err);
-            setError(err.message || 'Failed to load dashboard data');
+
+            setError(
+                err.message ||
+                'Failed to load dashboard data'
+            );
+
+            setWeatherLoading(false);
+
         } finally {
             setLoading(false);
         }
@@ -54,7 +90,9 @@ const FrontDeskDashboard = () => {
 
         const activeBookings = bookings.filter(
             (booking) =>
-                !['cancelled', 'checked_out'].includes(booking.booking_status)
+                !['cancelled', 'checked_out'].includes(
+                    booking.booking_status
+                )
         ).length;
 
         const todayCheckIns = bookings.filter(
@@ -81,11 +119,18 @@ const FrontDeskDashboard = () => {
 
     const recentBookings = useMemo(() => {
         return [...bookings]
-            .filter((booking) => booking.booking_status !== 'cancelled')
+            .filter(
+                (booking) =>
+                    booking.booking_status !== 'cancelled'
+            )
             .sort(
                 (a, b) =>
-                    new Date(b.created_at || b.check_in_date) -
-                    new Date(a.created_at || a.check_in_date)
+                    new Date(
+                        b.created_at || b.check_in_date
+                    ) -
+                    new Date(
+                        a.created_at || a.check_in_date
+                    )
             )
             .slice(0, 6);
     }, [bookings]);
@@ -114,17 +159,33 @@ const FrontDeskDashboard = () => {
 
         return status
             .split('_')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .map(
+                (word) =>
+                    word.charAt(0).toUpperCase() +
+                    word.slice(1)
+            )
             .join(' ');
     };
 
+    /*
+     * Loading state
+     */
     if (loading) {
         return (
             <div style={styles.page}>
                 <div style={styles.loadingCard}>
-                    <div style={styles.loadingSpinner}>⟳</div>
-                    <h2>Loading Front Desk Dashboard...</h2>
-                    <p>Fetching rooms and booking information.</p>
+                    <div style={styles.loadingSpinner}>
+                        ⟳
+                    </div>
+
+                    <h2>
+                        Loading Front Desk Dashboard...
+                    </h2>
+
+                    <p>
+                        Fetching rooms, booking and weather
+                        information.
+                    </p>
                 </div>
             </div>
         );
@@ -132,28 +193,45 @@ const FrontDeskDashboard = () => {
 
     return (
         <div style={styles.page}>
+
+            {/* Header */}
             <div style={styles.header}>
                 <div>
-                    <div style={styles.eyebrow}>FRONT DESK</div>
+                    <div style={styles.eyebrow}>
+                        FRONT DESK
+                    </div>
 
-                    <h1 style={styles.title}>Front Desk Dashboard</h1>
+                    <h1 style={styles.title}>
+                        Front Desk Dashboard
+                    </h1>
 
                     <p style={styles.subtitle}>
-                        Monitor today's hotel operations, rooms, and guest bookings.
+                        Monitor today's hotel operations,
+                        rooms, and guest bookings.
                     </p>
                 </div>
 
-                <button style={styles.refreshButton} onClick={loadDashboard}>
+                <button
+                    style={styles.refreshButton}
+                    onClick={loadDashboard}
+                >
                     ↻ Refresh
                 </button>
             </div>
 
+            {/* Error */}
             {error && (
                 <div style={styles.errorBox}>
-                    <strong>Unable to load dashboard</strong>
+                    <strong>
+                        Unable to load dashboard
+                    </strong>
+
                     <p>{error}</p>
 
-                    <button style={styles.retryButton} onClick={loadDashboard}>
+                    <button
+                        style={styles.retryButton}
+                        onClick={loadDashboard}
+                    >
                         Try Again
                     </button>
                 </div>
@@ -161,11 +239,19 @@ const FrontDeskDashboard = () => {
 
             {!error && (
                 <>
+                    {/* Statistics */}
                     <div style={styles.statsGrid}>
+
                         <div style={styles.statCard}>
-                            <div style={styles.statIcon}>🏨</div>
+                            <div style={styles.statIcon}>
+                                🏨
+                            </div>
+
                             <div>
-                                <div style={styles.statLabel}>Total Rooms</div>
+                                <div style={styles.statLabel}>
+                                    Total Rooms
+                                </div>
+
                                 <div style={styles.statValue}>
                                     {statistics.totalRooms}
                                 </div>
@@ -173,9 +259,15 @@ const FrontDeskDashboard = () => {
                         </div>
 
                         <div style={styles.statCard}>
-                            <div style={styles.statIcon}>🟢</div>
+                            <div style={styles.statIcon}>
+                                🟢
+                            </div>
+
                             <div>
-                                <div style={styles.statLabel}>Available Rooms</div>
+                                <div style={styles.statLabel}>
+                                    Available Rooms
+                                </div>
+
                                 <div style={styles.statValue}>
                                     {statistics.availableRooms}
                                 </div>
@@ -183,9 +275,15 @@ const FrontDeskDashboard = () => {
                         </div>
 
                         <div style={styles.statCard}>
-                            <div style={styles.statIcon}>🔴</div>
+                            <div style={styles.statIcon}>
+                                🔴
+                            </div>
+
                             <div>
-                                <div style={styles.statLabel}>Occupied Rooms</div>
+                                <div style={styles.statLabel}>
+                                    Occupied Rooms
+                                </div>
+
                                 <div style={styles.statValue}>
                                     {statistics.occupiedRooms}
                                 </div>
@@ -193,21 +291,36 @@ const FrontDeskDashboard = () => {
                         </div>
 
                         <div style={styles.statCard}>
-                            <div style={styles.statIcon}>📋</div>
+                            <div style={styles.statIcon}>
+                                📋
+                            </div>
+
                             <div>
-                                <div style={styles.statLabel}>Active Bookings</div>
+                                <div style={styles.statLabel}>
+                                    Active Bookings
+                                </div>
+
                                 <div style={styles.statValue}>
                                     {statistics.activeBookings}
                                 </div>
                             </div>
                         </div>
+
                     </div>
 
+                    {/* Today's Operations */}
                     <div style={styles.todayGrid}>
+
                         <div style={styles.todayCard}>
-                            <div style={styles.todayIcon}>↘</div>
+                            <div style={styles.todayIcon}>
+                                ↘
+                            </div>
+
                             <div>
-                                <div style={styles.todayLabel}>Today's Check-ins</div>
+                                <div style={styles.todayLabel}>
+                                    Today's Check-ins
+                                </div>
+
                                 <div style={styles.todayValue}>
                                     {statistics.todayCheckIns}
                                 </div>
@@ -215,24 +328,158 @@ const FrontDeskDashboard = () => {
                         </div>
 
                         <div style={styles.todayCard}>
-                            <div style={styles.todayIcon}>↗</div>
+                            <div style={styles.todayIcon}>
+                                ↗
+                            </div>
+
                             <div>
-                                <div style={styles.todayLabel}>Today's Check-outs</div>
+                                <div style={styles.todayLabel}>
+                                    Today's Check-outs
+                                </div>
+
                                 <div style={styles.todayValue}>
                                     {statistics.todayCheckOuts}
                                 </div>
                             </div>
                         </div>
+
                     </div>
 
-                    <section style={styles.section}>
-                        <div style={styles.sectionHeader}>
+                    {/* Destination Weather */}
+                    <section style={styles.weatherSection}>
+
+                        <div style={styles.weatherHeader}>
+
                             <div>
-                                <h2 style={styles.sectionTitle}>Recent Bookings</h2>
+                                <div style={styles.weatherEyebrow}>
+                                    DESTINATION WEATHER
+                                </div>
+
+                                <h2 style={styles.weatherTitle}>
+                                    Chennai
+                                </h2>
+
+                                <p style={styles.weatherSubtitle}>
+                                    Current weather conditions
+                                </p>
+                            </div>
+
+                            <div style={styles.weatherIcon}>
+                                🌤️
+                            </div>
+
+                        </div>
+
+                        {weatherLoading ? (
+                            <div style={styles.weatherLoading}>
+                                Loading weather information...
+                            </div>
+                        ) : weather ? (
+                            <div style={styles.weatherGrid}>
+
+                                {/* Temperature */}
+                                <div style={styles.weatherItem}>
+                                    <span style={styles.weatherItemIcon}>
+                                        🌡️
+                                    </span>
+
+                                    <div>
+                                        <div style={styles.weatherLabel}>
+                                            Temperature
+                                        </div>
+
+                                        <strong style={styles.weatherValue}>
+                                            {weather.current?.temperatureC ??
+                                                'N/A'}
+                                            °C
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                {/* Humidity */}
+                                <div style={styles.weatherItem}>
+                                    <span style={styles.weatherItemIcon}>
+                                        💧
+                                    </span>
+
+                                    <div>
+                                        <div style={styles.weatherLabel}>
+                                            Humidity
+                                        </div>
+
+                                        <strong style={styles.weatherValue}>
+                                            {weather.current?.humidityPercent ??
+                                                'N/A'}
+                                            %
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                {/* Wind */}
+                                <div style={styles.weatherItem}>
+                                    <span style={styles.weatherItemIcon}>
+                                        🌬️
+                                    </span>
+
+                                    <div>
+                                        <div style={styles.weatherLabel}>
+                                            Wind Speed
+                                        </div>
+
+                                        <strong style={styles.weatherValue}>
+                                            {weather.current?.windSpeedKmh ??
+                                                'N/A'}{' '}
+                                            km/h
+                                        </strong>
+                                    </div>
+                                </div>
+
+                                {/* Timezone */}
+                                <div style={styles.weatherItem}>
+                                    <span style={styles.weatherItemIcon}>
+                                        🕐
+                                    </span>
+
+                                    <div>
+                                        <div style={styles.weatherLabel}>
+                                            Timezone
+                                        </div>
+
+                                        <strong style={styles.weatherValue}>
+                                            {weather.location?.timezone ??
+                                                'N/A'}
+                                        </strong>
+                                    </div>
+                                </div>
+
+                            </div>
+                        ) : (
+                            <div style={styles.weatherLoading}>
+                                Weather information unavailable.
+                            </div>
+                        )}
+
+                        <div style={styles.weatherSource}>
+                            Weather data provided by Open-Meteo
+                        </div>
+
+                    </section>
+
+                    {/* Recent Bookings */}
+                    <section style={styles.section}>
+
+                        <div style={styles.sectionHeader}>
+
+                            <div>
+                                <h2 style={styles.sectionTitle}>
+                                    Recent Bookings
+                                </h2>
+
                                 <p style={styles.sectionSubtitle}>
                                     Latest active guest reservations
                                 </p>
                             </div>
+
                         </div>
 
                         {recentBookings.length === 0 ? (
@@ -241,67 +488,111 @@ const FrontDeskDashboard = () => {
                             </div>
                         ) : (
                             <div style={styles.tableWrapper}>
+
                                 <table style={styles.table}>
+
                                     <thead>
                                         <tr>
-                                            <th style={styles.th}>Booking</th>
-                                            <th style={styles.th}>Guest</th>
-                                            <th style={styles.th}>Room</th>
-                                            <th style={styles.th}>Check-in</th>
-                                            <th style={styles.th}>Check-out</th>
-                                            <th style={styles.th}>Status</th>
+                                            <th style={styles.th}>
+                                                Booking
+                                            </th>
+
+                                            <th style={styles.th}>
+                                                Guest
+                                            </th>
+
+                                            <th style={styles.th}>
+                                                Room
+                                            </th>
+
+                                            <th style={styles.th}>
+                                                Check-in
+                                            </th>
+
+                                            <th style={styles.th}>
+                                                Check-out
+                                            </th>
+
+                                            <th style={styles.th}>
+                                                Status
+                                            </th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
-                                        {recentBookings.map((booking) => (
-                                            <tr key={booking.id}>
-                                                <td style={styles.td}>
-                                                    <strong>
-                                                        {booking.booking_reference || 'N/A'}
-                                                    </strong>
-                                                </td>
 
-                                                <td style={styles.td}>
-                                                    {booking.guests?.full_name || 'Guest'}
-                                                </td>
+                                        {recentBookings.map(
+                                            (booking) => (
+                                                <tr key={booking.id}>
 
-                                                <td style={styles.td}>
-                                                    {booking.rooms?.room_number || 'N/A'}
-                                                </td>
+                                                    <td style={styles.td}>
+                                                        <strong>
+                                                            {booking.booking_reference ||
+                                                                'N/A'}
+                                                        </strong>
+                                                    </td>
 
-                                                <td style={styles.td}>
-                                                    {booking.check_in_date || 'N/A'}
-                                                </td>
+                                                    <td style={styles.td}>
+                                                        {booking.guests
+                                                            ?.full_name ||
+                                                            'Guest'}
+                                                    </td>
 
-                                                <td style={styles.td}>
-                                                    {booking.check_out_date || 'N/A'}
-                                                </td>
+                                                    <td style={styles.td}>
+                                                        {booking.rooms
+                                                            ?.room_number ||
+                                                            'N/A'}
+                                                    </td>
 
-                                                <td style={styles.td}>
-                                                    <span
-                                                        className={getStatusClass(
-                                                            booking.booking_status
-                                                        )}
-                                                        style={styles.statusBadge}
-                                                    >
-                                                        {formatStatus(booking.booking_status)}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    <td style={styles.td}>
+                                                        {booking.check_in_date ||
+                                                            'N/A'}
+                                                    </td>
+
+                                                    <td style={styles.td}>
+                                                        {booking.check_out_date ||
+                                                            'N/A'}
+                                                    </td>
+
+                                                    <td style={styles.td}>
+
+                                                        <span
+                                                            className={getStatusClass(
+                                                                booking.booking_status
+                                                            )}
+                                                            style={
+                                                                styles.statusBadge
+                                                            }
+                                                        >
+                                                            {formatStatus(
+                                                                booking.booking_status
+                                                            )}
+                                                        </span>
+
+                                                    </td>
+
+                                                </tr>
+                                            )
+                                        )}
+
                                     </tbody>
+
                                 </table>
+
                             </div>
                         )}
+
                     </section>
+
                 </>
             )}
+
         </div>
     );
 };
 
 const styles = {
+
     page: {
         padding: '40px',
         minHeight: '100%',
@@ -348,7 +639,8 @@ const styles = {
 
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gridTemplateColumns:
+            'repeat(4, minmax(0, 1fr))',
         gap: '18px',
         marginBottom: '18px'
     },
@@ -367,7 +659,8 @@ const styles = {
         width: '48px',
         height: '48px',
         borderRadius: '12px',
-        background: 'rgba(245, 158, 11, 0.12)',
+        background:
+            'rgba(245, 158, 11, 0.12)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -387,7 +680,8 @@ const styles = {
 
     todayGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gridTemplateColumns:
+            'repeat(2, minmax(0, 1fr))',
         gap: '18px',
         marginBottom: '32px'
     },
@@ -406,7 +700,8 @@ const styles = {
         width: '48px',
         height: '48px',
         borderRadius: '12px',
-        background: 'rgba(34, 197, 94, 0.12)',
+        background:
+            'rgba(34, 197, 94, 0.12)',
         color: '#22c55e',
         display: 'flex',
         alignItems: 'center',
@@ -425,6 +720,90 @@ const styles = {
         fontSize: '1.9rem',
         fontWeight: '800'
     },
+
+    /* Weather */
+
+    weatherSection: {
+        background: '#111827',
+        border: '1px solid #263449',
+        borderRadius: '16px',
+        padding: '24px',
+        marginBottom: '32px'
+    },
+
+    weatherHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px'
+    },
+
+    weatherEyebrow: {
+        color: '#f59e0b',
+        fontSize: '0.8rem',
+        fontWeight: '700',
+        letterSpacing: '0.12em',
+        marginBottom: '6px'
+    },
+
+    weatherTitle: {
+        margin: 0,
+        fontSize: '1.5rem',
+        fontWeight: '800'
+    },
+
+    weatherSubtitle: {
+        margin: '6px 0 0',
+        color: '#94a3b8'
+    },
+
+    weatherIcon: {
+        fontSize: '2.5rem'
+    },
+
+    weatherGrid: {
+        display: 'grid',
+        gridTemplateColumns:
+            'repeat(4, minmax(0, 1fr))',
+        gap: '16px'
+    },
+
+    weatherItem: {
+        background: '#172033',
+        border: '1px solid #263449',
+        borderRadius: '12px',
+        padding: '18px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+    },
+
+    weatherItemIcon: {
+        fontSize: '1.5rem'
+    },
+
+    weatherLabel: {
+        color: '#94a3b8',
+        fontSize: '0.8rem',
+        marginBottom: '5px'
+    },
+
+    weatherValue: {
+        fontSize: '1rem'
+    },
+
+    weatherLoading: {
+        color: '#94a3b8',
+        padding: '20px 0'
+    },
+
+    weatherSource: {
+        marginTop: '18px',
+        color: '#64748b',
+        fontSize: '0.75rem'
+    },
+
+    /* Recent bookings */
 
     section: {
         background: '#111827',
@@ -483,8 +862,10 @@ const styles = {
     },
 
     errorBox: {
-        background: 'rgba(239, 68, 68, 0.1)',
-        border: '1px solid rgba(239, 68, 68, 0.3)',
+        background:
+            'rgba(239, 68, 68, 0.1)',
+        border:
+            '1px solid rgba(239, 68, 68, 0.3)',
         borderRadius: '14px',
         padding: '20px',
         color: '#fecaca'

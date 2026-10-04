@@ -16,6 +16,7 @@ import AuthPage from './pages/AuthPage';
 import BookingPage from './pages/BookingPage';
 import RoomsPage from './pages/RoomsPage';
 import GuestPortalPage from './pages/GuestPortalPage';
+import FrontDeskDashboard from './pages/FrontDeskDashboard';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -35,14 +36,18 @@ function App() {
     let mounted = true;
 
     const getSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } =
+        await supabase.auth.getSession();
 
       if (!mounted) {
         return;
       }
 
       if (error) {
-        console.error('Failed to get Supabase session:', error);
+        console.error(
+          'Failed to get Supabase session:',
+          error
+        );
       }
 
       setSession(data?.session || null);
@@ -53,11 +58,13 @@ function App() {
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (mounted) {
-        setSession(newSession);
+    } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        if (mounted) {
+          setSession(newSession);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -91,10 +98,16 @@ function App() {
 
       setBackendHealth(data);
     } catch (error) {
-      console.error('Health check failed:', error);
+      console.error(
+        'Health check failed:',
+        error
+      );
+
       setBackendHealth(null);
+
       setBackendError(
-        error.message || 'Backend API unavailable'
+        error.message ||
+        'Backend API unavailable'
       );
     } finally {
       setBackendLoading(false);
@@ -112,10 +125,14 @@ function App() {
   // =========================================================
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth.signOut();
 
     if (error) {
-      console.error('Logout failed:', error);
+      console.error(
+        'Logout failed:',
+        error
+      );
       return;
     }
 
@@ -139,11 +156,22 @@ function App() {
           color: '#ffffff'
         }}
       >
-        <div style={{ textAlign: 'center' }}>
-          <h2>Loading StaySuite...</h2>
+        <div
+          style={{
+            textAlign: 'center'
+          }}
+        >
+          <h2>
+            Loading StaySuite...
+          </h2>
 
-          <p style={{ color: '#94a3b8' }}>
-            Checking your authentication session.
+          <p
+            style={{
+              color: '#94a3b8'
+            }}
+          >
+            Checking your authentication
+            session.
           </p>
         </div>
       </div>
@@ -176,18 +204,20 @@ function App() {
       }}
     >
       {/* =====================================================
-          HEADER
-      ====================================================== */}
+                HEADER
+            ====================================================== */}
 
       <header
         style={{
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom:
+            '1px solid var(--color-border)',
           padding: '20px 32px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '20px',
-          background: 'rgba(11, 15, 23, 0.95)',
+          background:
+            'rgba(11, 15, 23, 0.95)',
           backdropFilter: 'blur(10px)',
           position: 'sticky',
           top: 0,
@@ -228,7 +258,8 @@ function App() {
           <div>
             <h1
               style={{
-                fontFamily: 'var(--font-serif)',
+                fontFamily:
+                  'var(--font-serif)',
                 fontSize: '1.4rem',
                 letterSpacing: '0.02em',
                 fontWeight: 700,
@@ -242,13 +273,16 @@ function App() {
             <p
               style={{
                 fontSize: '0.8rem',
-                color: 'var(--color-text-secondary)',
+                color:
+                  'var(--color-text-secondary)',
                 letterSpacing: '0.04em',
-                textTransform: 'uppercase',
+                textTransform:
+                  'uppercase',
                 margin: 0
               }}
             >
-              Hotel Booking & Guest Operations Portal
+              Hotel Booking & Guest
+              Operations Portal
             </p>
           </div>
         </div>
@@ -264,12 +298,36 @@ function App() {
             justifyContent: 'flex-end'
           }}
         >
+          {/* Front Desk */}
+
           <button
             type="button"
-            onClick={() => setActivePage('bookings')}
+            onClick={() =>
+              setActivePage('frontdesk')
+            }
             style={{
               ...navButtonStyle,
-              ...(activePage === 'bookings'
+              ...(activePage ===
+                'frontdesk'
+                ? activeNavButtonStyle
+                : {})
+            }}
+          >
+            <Building2 size={17} />
+            Front Desk
+          </button>
+
+          {/* Bookings */}
+
+          <button
+            type="button"
+            onClick={() =>
+              setActivePage('bookings')
+            }
+            style={{
+              ...navButtonStyle,
+              ...(activePage ===
+                'bookings'
                 ? activeNavButtonStyle
                 : {})
             }}
@@ -278,12 +336,17 @@ function App() {
             Bookings
           </button>
 
+          {/* Rooms */}
+
           <button
             type="button"
-            onClick={() => setActivePage('rooms')}
+            onClick={() =>
+              setActivePage('rooms')
+            }
             style={{
               ...navButtonStyle,
-              ...(activePage === 'rooms'
+              ...(activePage ===
+                'rooms'
                 ? activeNavButtonStyle
                 : {})
             }}
@@ -292,12 +355,17 @@ function App() {
             Rooms
           </button>
 
+          {/* Guests */}
+
           <button
             type="button"
-            onClick={() => setActivePage('guests')}
+            onClick={() =>
+              setActivePage('guests')
+            }
             style={{
               ...navButtonStyle,
-              ...(activePage === 'guests'
+              ...(activePage ===
+                'guests'
                 ? activeNavButtonStyle
                 : {})
             }}
@@ -306,13 +374,16 @@ function App() {
             Guests
           </button>
 
+          {/* Logout */}
+
           <button
             type="button"
             onClick={handleLogout}
             style={{
               ...navButtonStyle,
               color: '#fca5a5',
-              borderColor: 'rgba(239, 68, 68, 0.25)'
+              borderColor:
+                'rgba(239, 68, 68, 0.25)'
             }}
             title="Logout"
           >
@@ -323,8 +394,8 @@ function App() {
       </header>
 
       {/* =====================================================
-          MAIN CONTENT
-      ====================================================== */}
+                MAIN CONTENT
+            ====================================================== */}
 
       <main
         style={{
@@ -338,11 +409,13 @@ function App() {
             marginBottom: '28px',
             padding: '18px 22px',
             borderRadius: '18px',
-            border: '1px solid #263247',
+            border:
+              '1px solid #263247',
             background: '#111827',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent:
+              'space-between',
             gap: '20px',
             flexWrap: 'wrap'
           }}
@@ -359,7 +432,9 @@ function App() {
               color="var(--color-text-secondary)"
             />
 
-            <strong>Backend API</strong>
+            <strong>
+              Backend API
+            </strong>
 
             {backendHealth && (
               <span
@@ -374,9 +449,12 @@ function App() {
                   style={{
                     width: '8px',
                     height: '8px',
-                    borderRadius: '50%',
-                    background: '#10b981',
-                    display: 'inline-block'
+                    borderRadius:
+                      '50%',
+                    background:
+                      '#10b981',
+                    display:
+                      'inline-block'
                   }}
                 />
 
@@ -405,19 +483,26 @@ function App() {
               gap: '7px',
               padding: '9px 15px',
               borderRadius: '9px',
-              border: '1px solid #334155',
+              border:
+                '1px solid #334155',
               background: '#1e293b',
               color: '#ffffff',
-              cursor: backendLoading
-                ? 'not-allowed'
-                : 'pointer',
-              opacity: backendLoading ? 0.7 : 1
+              cursor:
+                backendLoading
+                  ? 'not-allowed'
+                  : 'pointer',
+              opacity:
+                backendLoading
+                  ? 0.7
+                  : 1
             }}
           >
             <RefreshCw
               size={15}
               className={
-                backendLoading ? 'animate-spin' : ''
+                backendLoading
+                  ? 'animate-spin'
+                  : ''
               }
             />
 
@@ -433,14 +518,16 @@ function App() {
           style={{
             marginBottom: '24px',
             display: 'flex',
-            justifyContent: 'flex-end'
+            justifyContent:
+              'flex-end'
           }}
         >
           <div
             style={{
               padding: '8px 14px',
               borderRadius: '20px',
-              background: 'rgba(245, 158, 11, 0.08)',
+              background:
+                'rgba(245, 158, 11, 0.08)',
               border:
                 '1px solid rgba(245, 158, 11, 0.2)',
               color: '#fbbf24',
@@ -452,16 +539,28 @@ function App() {
         </div>
 
         {/* =================================================
-            PAGE ROUTING
-        ================================================== */}
+                    PAGE ROUTING
+                ================================================== */}
+
+        {/* Front Desk Dashboard */}
+
+        {activePage === 'frontdesk' && (
+          <FrontDeskDashboard />
+        )}
+
+        {/* Bookings */}
 
         {activePage === 'bookings' && (
           <BookingPage />
         )}
 
+        {/* Rooms */}
+
         {activePage === 'rooms' && (
           <RoomsPage />
         )}
+
+        {/* Guests */}
 
         {activePage === 'guests' && (
           <GuestPortalPage />
@@ -469,20 +568,24 @@ function App() {
       </main>
 
       {/* =====================================================
-          FOOTER
-      ====================================================== */}
+                FOOTER
+            ====================================================== */}
 
       <footer
         style={{
-          borderTop: '1px solid var(--color-border)',
+          borderTop:
+            '1px solid var(--color-border)',
           padding: '24px',
           textAlign: 'center',
           fontSize: '0.85rem',
-          color: 'var(--color-text-muted)',
-          background: 'rgba(11, 15, 23, 0.5)'
+          color:
+            'var(--color-text-muted)',
+          background:
+            'rgba(11, 15, 23, 0.5)'
         }}
       >
-        StaySuite Hotel Booking & Guest Operations Portal
+        StaySuite Hotel Booking & Guest
+        Operations Portal
         &copy; 2026
       </footer>
     </div>
@@ -508,8 +611,10 @@ const navButtonStyle = {
 };
 
 const activeNavButtonStyle = {
-  background: 'rgba(245, 158, 11, 0.12)',
-  border: '1px solid rgba(245, 158, 11, 0.35)',
+  background:
+    'rgba(245, 158, 11, 0.12)',
+  border:
+    '1px solid rgba(245, 158, 11, 0.35)',
   color: '#fbbf24'
 };
 
